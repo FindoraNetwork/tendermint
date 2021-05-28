@@ -439,15 +439,31 @@ func (h *Handshaker) replayBlocks(
 	if mutateState {
 		finalBlock--
 	}
+
+	var block *types.Block
+	var block_next *types.Block
+	var appHashCurReplay []byte
 	for i := appBlockHeight + 1; i <= finalBlock; i++ {
 		h.logger.Info("Applying block", "height", i)
-		block := h.store.LoadBlock(i)
+
+		if nil != block_next {
+			block = block_next
+		} else {
+			block = h.store.LoadBlock(i)
+		}
+		block_next = h.store.LoadBlock(1 + i)
+		if nil != block_next {
+			appHashCurReplay = block_next.Header.AppHash
+		} else {
+			appHashCurReplay = nil
+		}
+
 		// Extra check to ensure the app was not changed in a way it shouldn't have.
 		if len(appHash) > 0 {
 			assertAppHashEqualsOneFromBlock(appHash, block)
 		}
 
-		appHash, err = sm.ExecCommitBlock(proxyApp.Consensus(), block, h.logger, h.stateDB)
+		appHash, err = sm.ExecCommitBlock(proxyApp.Consensus(), block, h.logger, h.stateDB, appHashCurReplay)
 		if err != nil {
 			return nil, err
 		}
